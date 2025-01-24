@@ -1,6 +1,9 @@
 import serial
+import time
 
-ser = serial.Serial('COM5', 115200)
+ser = serial.Serial('/dev/tty.usbmodem2101', 115200)
+time.sleep(2)
+ser.write(b'\x03')
 
 print("Importing Main")
 premoji = "from code import move_servo, i2c\r\n"

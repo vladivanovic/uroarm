@@ -10,9 +10,11 @@ class SerialPortError(TalkerError):
 class Talker:
     TERMINATOR = '\r'.encode('UTF8')
 
-    def __init__(self, port='COM5', timeout=1):
+    def __init__(self, port='/dev/tty.usbmodem2101', timeout=1):
         try:
             self.serial = serial.Serial(port, 115200, timeout=timeout)
+            time.sleep(2)
+            self.serial.write(b'\x03')
         except serial.serialutil.SerialException:
             raise SerialPortError(f'The specified serial port does not exist: {port}')
 

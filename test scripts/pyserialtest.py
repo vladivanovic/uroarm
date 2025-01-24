@@ -2,7 +2,7 @@ import serial
 import time
 
 # Open the serial port
-ser = serial.Serial('COM4', 115200, timeout=1)
+ser = serial.Serial('/dev/tty.usbmodem2101', 115200, timeout=1)
 
 # Function to send data
 def send_command(command):
