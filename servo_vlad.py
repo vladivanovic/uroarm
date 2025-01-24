@@ -86,7 +86,6 @@ def set_servo_angle(ch: int, deg: float):
     try:
         reply = ser.send(cmd)
         print("Console Output: " + reply)
-        time.sleep(1)
     except TalkerError as e:
         print(e)
 

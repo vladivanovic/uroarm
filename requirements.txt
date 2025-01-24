@@ -1,0 +1,10 @@
+opencv-contrib-python
+pysimplegui
+pyserial
+scikit-learn
+matplotlib
+pandas
+requests
+tqdm
+openvino
+tk

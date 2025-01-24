@@ -68,6 +68,7 @@ class Servos:
         self.freq = freq
         self.pca9685 = PCA9685(i2c, address)
         self.pca9685.freq(freq)
+        print(self.pca9685.freq(freq))
 
     def _us2duty(self, value):
         return int(4095 * value / self.period)
@@ -93,18 +94,36 @@ class Servos:
 i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq=100000)
 print(i2c.scan())
 
-ss = Servos(i2c, freq=60)
+#ss = Servos(i2c, freq=60)
 
-deg = 0
-while True:
-    s = input()
-    v = s.split(',')
-    if len(v) != 2:
-        print('syntax error', s)
-        continue
-    
-    chn = int(v[0])
-    deg = float(v[1])
+# Pico LED Tester
+#led = Pin(25, Pin.OUT) # veresion for Pico
+led = Pin('LED', Pin.OUT) # version for Pico W
 
+# Turn the LED on
+def on():
+    led.value(1)
+
+# Turn the LED off
+def off():
+    led.value(0)
+
+#while True:
+#    print("loop started")
+#    s = input()
+#    v = s.split(',')
+#    if len(v) != 2:
+#        print('syntax error', s)
+#        continue
+#    chn = int(v[0])
+#    deg = float(v[1])
+#    ss.position(chn, deg)
+
+def move_servo(s,v):
+    ss = Servos(i2c)
+    print("moving servo")
+    s = s
+    v = v
+    chn = int(s)
+    deg = float(v)
     ss.position(chn, deg)
-
