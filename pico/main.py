@@ -1,3 +1,7 @@
+#
+# This file should be utilised on MicroPython based boards
+#
+
 import ustruct
 import time
 from machine import I2C, Pin
