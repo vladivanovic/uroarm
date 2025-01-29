@@ -6,6 +6,7 @@ import PySimpleGUI as sg
 from util import nax, read_params, servo_angle_keys, radian, write_params, spin, get_move_time
 import numpy as np
 from talker import Talker, TalkerError, SerialPortError
+from adafruit_pca9685 import PCA9685
 
 
 servo_angles = [np.nan] * nax
@@ -13,16 +14,17 @@ servo_angles = [np.nan] * nax
 def init_servo_nano(params):
     global pwm
     try:
-        import Adafruit_PCA9685
-        print('import Adafruit Successful')
-        pwm = Adafruit_PCA9685.PCA9685(address=0x40)
+        #import Adafruit_PCA9685
+        #print('import Adafruit Successful')
+        #pwm = Adafruit_PCA9685.PCA9685(address=0x40)
+        pwm = PCA9685(address=0x40)
         pwm.set_pwm_freq(60)
 
     except ModuleNotFoundError:
         print("no Adafruit")
 
 def setPWM(ch, pos):
-    pulse = round( 150 + (600 - 150) * (pos + 0.5 * math.pi) / math.pi )
+    pulse = round(150 + (600 - 150) * (pos + 0.5 * math.pi) / math.pi)
     pwm.set_pwm(ch, 0, pulse)
     print('set pulse ok')
 
@@ -30,7 +32,6 @@ def set_servo_angle_nano(ch, deg):
     rad = radian(deg)
     setPWM(ch, rad)
     print('set servo angle ok')
-
 
 def init_servo(params_arg):
     global params, servo_angles, servo_param, ser
@@ -92,16 +93,13 @@ def set_servo_angle(ch: int, deg: float):
 
 def move_servo(ch, dst):
     src = servo_angles[ch]
-
     move_time = get_move_time()
     start_time = time.time()
     while True:
         t = (time.time() - start_time) / move_time
         if 1 <= t:
             break
-
         deg = t * dst + (1 - t) * src
-
         set_servo_angle(ch, deg)
         yield
 
@@ -125,11 +123,8 @@ def move_all_servo(dsts):
         yield
 
 if __name__ == '__main__':
-
     params = read_params()
-
     init_servo(params)
-
     layout = [
         [
             spin(f'J{i+1}', f'J{i+1}-servo', int(servo_angles[i]), -120, 120, True) for i in range(nax)
@@ -139,37 +134,25 @@ if __name__ == '__main__':
         +
         [ sg.Button('Close') ]
     ]
-
     window = sg.Window('Servo', layout, element_justification='c') # disable_minimize=True, 
-
     moving = None
-
     while True:
         event, values = window.read(timeout=1)
-
         if moving is not None:
             try:
                 moving.__next__()
-
             except StopIteration:
                 moving = None
                 print('========== stop moving ==========')
-
                 params['prev-servo'] = servo_angles
                 write_params(params)
-
         if event in servo_angle_keys:
             ch = servo_angle_keys.index(event)
             deg = values[event]
-
             moving = move_servo(ch, deg)
-
         elif event == sg.WIN_CLOSED or event == 'Close':
-
             params['prev-servo'] = servo_angles
             write_params(params)
-
             break
-
     window.close()
 

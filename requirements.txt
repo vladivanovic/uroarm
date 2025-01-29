@@ -8,3 +8,5 @@ numpy
 requests
 tqdm
 openvino
+flask
+adafruit-circuitpython-pca9685
