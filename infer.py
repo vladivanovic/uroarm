@@ -1,3 +1,7 @@
+#
+# This code does the inferencing of objects
+#
+
 import os
 import queue
 from multiprocessing import Process, Queue, freeze_support

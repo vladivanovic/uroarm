@@ -4,7 +4,10 @@ See below
     naoki-mizuno/charuco_webcam.py
     https://gist.github.com/naoki-mizuno/c80e909be82434ddae202ff52ea1f80a
 """
-### 
+#
+# As above, this code is used for Camera Calibiration using CharucoBoard
+#
+
 import sys
 import time
 import cv2

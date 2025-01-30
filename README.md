@@ -12,6 +12,11 @@ The original creator created a tutorial (Japanese) at the following link https:/
 # Things to keep in mind
 How you power your environment is important, you will need 5v 3A Power Supply for the Servo Controller+Servos to power this neatly.
 
+# Getting started
+1. Servo.py is used for testing the serial connection to your Pico works, then testing the PWM and Servo motors work
+2. Angle.py is used for calibrating the motors and setting smaller movement limits to prevent the arm flying off (e.g. 0 on your motor may flip the arm backwards, so you set 90 as the new 0 and limit the scope of the arm)
+3. Arm.py will be the main application for triggering all other actions
+
 # Things that helped me
 I stepped in to MicroControllers etc as a complete newbie. Here are some links that helped me out along the way.
 1. MicroPython downloads https://micropython.org/download/RPI_PICO/

@@ -1,9 +1,13 @@
+#
+# This is used for creating printable Charuco Board / Aruco Markers
+#
+
 import os
 import numpy as np
 from cv2 import aruco
 import cv2
 
-dir_marker = 'data/marker'
+dir_marker = 'marker'
 
 def make_board():
     dictionary = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)

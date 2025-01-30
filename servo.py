@@ -1,3 +1,7 @@
+#
+# This file is for both testing the robot arm and also for functions used by other scripts like Angle.py, Arm.py and Kinematics.py
+#
+
 import sys
 import time
 import math

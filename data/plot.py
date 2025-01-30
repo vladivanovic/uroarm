@@ -5,7 +5,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 
 # scr-x scr-y   tcp-height   arm-x  ...      arm-z   prd-arm-x   prd-arm-y   prd-arm-z
-df = pd.read_csv('data/calibrate-xy.csv')
+df = pd.read_csv('calibrate-xy.csv')
 
 X = df['scr-x']
 Y = df['scr-y']

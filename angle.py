@@ -1,3 +1,7 @@
+#
+# This file is used for calculating arm movement
+#
+
 import sys
 import time
 import math
@@ -105,7 +109,7 @@ if __name__ == '__main__':
         ]
         +
         [
-            spin3(ch, f'J{ch+1}', f'J{ch+1}', deg, servo_to_angle(ch, deg), -120, 150, a, b, True) 
+            spin3(ch, f'J{ch+1}', f'J{ch+1}', deg, servo_to_angle(ch, deg), 0, 180, a, b, True) 
                 for ch, (deg, (a, b)) in enumerate(zip(servo_angles, datum_angles))
         ]
         +
