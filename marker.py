@@ -4,7 +4,6 @@ import cv2
 from cv2 import aruco
 import os
 import numpy as np
-
 import PySimpleGUI as sg
 import cv2
 from sklearn.linear_model import LinearRegression

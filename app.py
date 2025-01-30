@@ -11,7 +11,6 @@ import sys
 import time
 import math
 import serial
-import PySimpleGUI as sg
 from util import nax, read_params, servo_angle_keys, radian, write_params, spin, get_move_time
 import numpy as np
 from talker import Talker, TalkerError, SerialPortError
@@ -39,7 +38,6 @@ def set_servo_angle_nano(ch, deg):
     rad = radian(deg)
     setPWM(ch, rad)
     print('set servo angle ok')
-
 
 def init_servo(params_arg):
     global params, servo_angles, servo_param, ser

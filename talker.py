@@ -7,16 +7,18 @@ class TalkerError(Exception):
 class SerialPortError(TalkerError):
     pass
 
-class Talker:
+class Talker():
     TERMINATOR = '\r'.encode('UTF8')
 
-    def __init__(self, port='/dev/tty.usbmodem2101', timeout=1):
+    def __init__(self, com_port, timeout=1):
+        self.com_port = com_port
         try:
-            self.serial = serial.Serial(port, 115200, timeout=timeout)
+            self.serial = serial.Serial(com_port, 115200, timeout=timeout)
             time.sleep(2)
             self.serial.write(b'\x03')
+            self.receive()
         except serial.serialutil.SerialException:
-            raise SerialPortError(f'The specified serial port does not exist: {port}')
+            raise SerialPortError(f'The specified serial port does not exist: {com_port}')
 
     def send(self, text: str):
         line = '%s\r\f' % text

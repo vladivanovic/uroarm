@@ -144,15 +144,11 @@ def read_params():
             "marker-ids": [ 0, 1, 2, 3, 4 ],
             "cameras" : {}
         }
-
         write_params(params)
-
         print('data/arm.json is created.')
         sys.exit(0)
-
     with open('data/arm.json', 'r') as f:
         params = json.load(f)
-
     return params
 
 def spin(label, key, val, min_val, max_val, bind_return_key = True):
