@@ -3,89 +3,76 @@
 
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver(0x40);   // Initiates library.
 
-#define SERVOMIN  500  // Minimum pulse length count out of 4096.
-#define SERVOMAX  2400 // Maximum pulse length count out of 4096.
-
-int Servo_pin0 = 0; // Defines a counter for servos.
-int Servo_pin1 = 1; // Defines a counter for servos.
-int Servo_pin2 = 2; // Defines a counter for servos.
-int Servo_pin3 = 3; // Defines a counter for servos.
-int Servo_pin4 = 4; // Defines a counter for servos.
-int Servo_pin5 = 5; // Defines a counter for servos.
-int angle;
-
 void setup() {
+  Serial.begin(9600);
+  Serial.println("PCA9685 Servo loading");
   pwm.begin();         // 初期設定
-  pwm.setPWMFreq(60);  // PWM周期を50Hzに設定
-  delay(1000);
-  Serial.println("Starting Servo Movement Script!");
-  // Servo 1 - Position 1
-  angle = 60;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin0, angle);        // サーボを動作させる
-  delay(1000);
-  // Servo 2 - Position 1
-  angle = 50;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin1, angle);        // サーボを動作させる
-  delay(1000);
-  // Servo 3 - Position 1
-  angle = 160;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin2, angle);        // サーボを動作させる
-  delay(1000);
-  // Servo 4 - Position 1
-  angle = 160;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);
-  pwm.writeMicroseconds(Servo_pin3, angle);
-  delay(1000);
-  // Servo 5 - Position 1
-  angle = 90;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);
-  pwm.writeMicroseconds(Servo_pin4, angle);
-  delay(1000);
-  // Servo 6 - Claw Position 1
-  angle = 90;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);
-  pwm.writeMicroseconds(Servo_pin5, angle);
-  delay(1000); 
-  // Pick up Position Complete!
-  // Claw Grabbing now!
-  // Servo 6 - Claw Position 1
-  angle = 120;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);
-  pwm.writeMicroseconds(Servo_pin5, angle);
-  delay(1000);   
-  // Starting Position 2 Movement!
-  // Servo 2 - Position 2
-  angle = 70;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin1, angle);        // サーボを動作させる
-  delay(1000);
-  // Servo 1 - Position 2
-  angle = 120;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin0, angle);        // サーボを動作させる
-  delay(1000);
-  // Starting Position 3 Movement!
-  // Servo 2 - Position 3
-  angle = 60;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin1, angle);        // サーボを動作させる
-  delay(1000);
-  // Servo 2 - Position 3.5
-  angle = 70;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);  // 角度(0~180)をパルス幅(500~2400μs)に変換
-  pwm.writeMicroseconds(Servo_pin1, angle);        // サーボを動作させる
-  delay(1000);
-  // Claw Releasing now!
-  // Servo 6 - Claw Position 1
-  angle = 60;
-  angle = map(angle,0, 180, SERVOMIN, SERVOMAX);
-  pwm.writeMicroseconds(Servo_pin5, angle);
-  delay(1000); 
+  pwm.setPWMFreq(50);  // PWM周期を50Hzに設定
+  delay(10);
 }
 
 void loop() {
+  if (Serial.available() > 0) {
+    String data = Serial.readStringUntil('\n');
+    data.trim();  // Remove any leading/trailing whitespace
+    // Serial.print("Raw data received: ");
+    // Serial.println(data);
 
+    // Remove "moveServo(" and ")"
+    int startIndex = data.indexOf('(');
+    int endIndex = data.indexOf(')');
+    if (startIndex >= 0 && endIndex > startIndex) {
+      String params = data.substring(startIndex + 1, endIndex);
+      // Serial.print("Parameters extracted: ");
+      // Serial.println(params);
+
+      int commaIndex = params.indexOf(',');
+      if (commaIndex > 0) {
+        int chn = params.substring(0, commaIndex).toInt();
+        float deg = params.substring(commaIndex + 1).toFloat();
+
+        Serial.print("Parsed - Channel: ");
+        Serial.print(chn);
+        Serial.print(", Degree: ");
+        Serial.println(deg);
+
+        moveServo(chn, deg);
+      } else {
+        Serial.println("Error: Invalid parameter format");
+      }
+    } else {
+      Serial.println("Error: Invalid command format");
+    }
+  }
+}
+
+void moveServo(int chn, float deg) {
+  uint16_t pulseLength;
+
+  if (chn == 0 || chn == 3 || chn == 4 || chn == 5) {
+    // Code for Servos 0, 3, 4, 5 - MG996R
+    uint16_t pulseMin = 100;  // Example values, adjust as needed
+    uint16_t pulseMax = 600;
+    pulseLength = map(deg, 0, 180, pulseMin, pulseMax);
+    Serial.print("Running code for channel ");
+    Serial.println(chn);
+  } else if (chn == 1 || chn == 2) {
+    // Code for Servos 1, 2 - DS3219MG
+    uint16_t pulseMin = 100;  // Example values, adjust as needed
+    uint16_t pulseMax = 600;
+    pulseLength = map(deg, 0, 180, pulseMin, pulseMax);
+    Serial.print("Running code for channel ");
+    Serial.println(chn);
+  } else {
+    // Handle invalid channel
+    Serial.println("Error: Invalid channel");
+    return;
+  }
+  Serial.print("Channel: ");
+  Serial.print(chn);
+  Serial.print(", Degree: ");
+  Serial.print(deg);
+  Serial.print(", Pulse Length: ");
+  Serial.println(pulseLength);
+  pwm.setPWM(chn, 0, pulseLength);
 }

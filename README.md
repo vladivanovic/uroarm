@@ -10,7 +10,8 @@ The original creator created a tutorial (Japanese) at the following link https:/
 5. I will translate the rest of the linked document to English in the future!
 
 # Things to keep in mind
-How you power your environment is important, you will need 5v 3A Power Supply for the Servo Controller+Servos to power this neatly.
+1. How you power your environment is important, you will need 5v 3A Power Supply for the Servo Controller+Servos to power this neatly.
+2. Servo Specifications - in my case I have been running two different types of Servos, DS3218MG for Motors 1 and 2 and the MG996R for Motors 0, 3, 4 and 5. Looking at the datasheets for these the PWM (Pulse Width Modulation) for the DS3218MG is 500~2500μs for 0 to 180degrees; conversely the MG996R is 1000~2000μs for 0 to 180 degrees. That being said, it seems like PWM being 100~600 on a 50Hz signal seems to be what works when running through an Arduino+PCA9685 - I need to learn more about how all of this works.
 
 # Getting started
 1. Servo.py is used for testing the serial connection to your Pico works, then testing the PWM and Servo motors work
