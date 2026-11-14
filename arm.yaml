@@ -1,0 +1,49 @@
+# uroarm arm profiles — the single source of truth for both arms.
+#
+# Everything that used to be scattered across kinematics.py (link lengths),
+# data/arm.json (scale/offset), the Pico firmwares and the Arduino sketch
+# (pulse ranges) lives here now. The Python driver, the ROS 2 URDF and the
+# LeRobot plugin all read this file.
+#
+# Joint names follow the LeRobot SO-101 convention so datasets and tooling
+# line up with the wider LeRobot ecosystem.
+#
+# scale/offset:  servo_deg = scale * joint_deg + offset_deg
+# (this is exactly the old arm.json "servo-angle" [coef, intercept] pair).
+#
+# pulse_us is the OPERATING pulse range the firmware maps 0-180 servo
+# degrees onto. It is kept at the old firmware's uniform 600-2400 us so
+# existing calibrations stay valid. Datasheet ranges differ per servo
+# (DS3218MG: 500-2500 us, MG996R: 1000-2000 us) — only narrow pulse_us
+# deliberately, and recalibrate afterwards if you do.
+#
+# limit_deg are JOINT-space limits. The values below are the conservative
+# defaults implied by the old default calibration ([1, 90] over a 0-180
+# servo range => -90..+90). Tighten them per real arm, like angle.py did.
+
+arms:
+  uroarm:
+    description: "Vlad's uroarm (teatime77 design), Pico + PCA9685"
+    port: null            # e.g. /dev/ttyACM0, COM5 — null = must be passed in
+    baudrate: 115200
+    links_mm: { L0: 111, L1: 105, L2: 98, L3: 25, L4: 157 }
+    joints:
+      - { name: shoulder_pan,  channel: 0, servo: MG996R,   scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: shoulder_lift, channel: 1, servo: DS3218MG, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: elbow_flex,    channel: 2, servo: DS3218MG, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: wrist_flex,    channel: 3, servo: MG996R,   scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: wrist_roll,    channel: 4, servo: MG996R,   scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: gripper,       channel: 5, servo: MG996R,   scale: 1.0, offset_deg: 90.0, limit_deg: [0, 100],  pulse_us: [600, 2400] }
+
+  arm2:
+    description: "Second custom arm, same uroarm-example geometry, different motors — FILL IN servo models, calibration and limits from that arm"
+    port: null
+    baudrate: 115200
+    links_mm: { L0: 111, L1: 105, L2: 98, L3: 25, L4: 157 }
+    joints:
+      - { name: shoulder_pan,  channel: 0, servo: TBD, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: shoulder_lift, channel: 1, servo: TBD, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: elbow_flex,    channel: 2, servo: TBD, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: wrist_flex,    channel: 3, servo: TBD, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: wrist_roll,    channel: 4, servo: TBD, scale: 1.0, offset_deg: 90.0, limit_deg: [-90, 90], pulse_us: [600, 2400] }
+      - { name: gripper,       channel: 5, servo: TBD, scale: 1.0, offset_deg: 90.0, limit_deg: [0, 100],  pulse_us: [600, 2400] }

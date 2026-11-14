@@ -1,0 +1,9 @@
+# MoveIt joint limits — conservative velocity/acceleration for hobby
+# servos; their internal controllers, not MoveIt, set the real speed.
+joint_limits:
+  shoulder_pan:  { max_velocity: 1.5, max_acceleration: 3.0 }
+  shoulder_lift: { max_velocity: 1.5, max_acceleration: 3.0 }
+  elbow_flex:    { max_velocity: 1.5, max_acceleration: 3.0 }
+  wrist_flex:    { max_velocity: 1.5, max_acceleration: 3.0 }
+  wrist_roll:    { max_velocity: 1.5, max_acceleration: 3.0 }
+  gripper:       { max_velocity: 1.5, max_acceleration: 3.0 }

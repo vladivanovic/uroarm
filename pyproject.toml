@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "uroarm"
+version = "0.2.0"
+description = "Shared driver core for uroarm-derived hobby-servo arms (Pico + PCA9685), with ROS 2 and LeRobot adapters"
+requires-python = ">=3.10"
+dependencies = ["pyyaml", "pyserial", "numpy"]
+
+[tool.setuptools]
+packages = ["uroarm"]

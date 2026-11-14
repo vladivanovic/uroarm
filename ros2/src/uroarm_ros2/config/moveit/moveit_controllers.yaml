@@ -1,0 +1,19 @@
+# MoveIt talks to the uroarm node through its FollowJointTrajectory
+# action server (no ros2_control controller_manager in this design).
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - uroarm_controller
+
+  uroarm_controller:
+    type: FollowJointTrajectory
+    action_ns: uroarm_controller/follow_joint_trajectory
+    default: true
+    joints:
+      - shoulder_pan
+      - shoulder_lift
+      - elbow_flex
+      - wrist_flex
+      - wrist_roll
+      - gripper

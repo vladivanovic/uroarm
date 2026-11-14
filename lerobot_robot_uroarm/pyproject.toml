@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lerobot-robot-uroarm"
+version = "0.1.0"
+description = "LeRobot robot plugin for uroarm-derived hobby-servo arms (Pico + PCA9685, no position feedback — echo observations)"
+readme = "README.md"
+requires-python = ">=3.10"
+# The `uroarm` driver package lives in this same repository; install it
+# first (pip install -e <repo root> equivalent: the repo root pyproject
+# provides the `uroarm` package). LeRobot itself is provided by the
+# user's LeRobot install (v0.6.x API, verified against v0.6.2).
+dependencies = ["pyyaml", "pyserial"]
+
+[tool.setuptools]
+packages = ["lerobot_robot_uroarm"]

@@ -1,29 +1,101 @@
-# MicroPython based Robot Arm Controller
-This is my fork of teatime77/uroarm
-The original creator created a tutorial (Japanese) at the following link https://uroa.jp/arm/
+# uroarm — LeRobot + ROS 2 robot arm controller
 
-# Installation Procedure
-1. Pull the repo, create a venv
-2. Install requirements.txt with pip3
-3. Follow instructions at the above link, using the same Servo Controller and Robot Arm configuration where possible (one day I'll copy it here and translate it)
-4. Load MicroPython or CircuitPython on to your Pi Pico or Pi Pico 2 board
-5. I will translate the rest of the linked document to English in the future!
+Vlad's fork of [teatime77/uroarm](https://github.com/teatime77/uroarm)
+(original tutorial, Japanese: https://uroa.jp/arm/), rebuilt around a
+shared driver core with **LeRobot** and **ROS 2** adapters.
 
-# Things to keep in mind
-1. How you power your environment is important, you will need 5v 3A Power Supply for the Servo Controller+Servos to power this neatly.
-2. Servo Specifications - in my case I have been running two different types of Servos, DS3218MG for Motors 1 and 2 and the MG996R for Motors 0, 3, 4 and 5. Looking at the datasheets for these the PWM (Pulse Width Modulation) for the DS3218MG is 500~2500μs for 0 to 180degrees; conversely the MG996R is 1000~2000μs for 0 to 180 degrees. That being said, it seems like PWM being 100~600 on a 50Hz signal seems to be what works when running through an Arduino+PCA9685 - I need to learn more about how all of this works.
+Two physical arms use this codebase — the original uroarm and a second
+custom build from the same design with different motors. They differ
+only in their profile in [`arm.yaml`](arm.yaml).
 
-# Getting started
-1. Servo.py is used for testing the serial connection to your Pico works, then testing the PWM and Servo motors work
-2. Angle.py is used for calibrating the motors and setting smaller movement limits to prevent the arm flying off (e.g. 0 on your motor may flip the arm backwards, so you set 90 as the new 0 and limit the scope of the arm)
-3. Arm.py will be the main application for triggering all other actions
+## Why the rewrite
 
-# Things that helped me
-I stepped in to MicroControllers etc as a complete newbie. Here are some links that helped me out along the way.
-1. MicroPython downloads https://micropython.org/download/RPI_PICO/
-2. Servo Driver documentation https://cdn-learn.adafruit.com/downloads/pdf/adafruit-16-channel-servo-driver-with-raspberry-pi.pdf
-3. Learning how PySerial works to troubleshoot Python Script on my local machine interacting with Script on MicroController https://blog.rareschool.com/2021/01/controlling-raspberry-pi-pico-using.html
-4. Naturally, the PySerial API Documentation for that too https://pyserial.readthedocs.io/en/latest/pyserial_api.html
-5. Many people use Thonny to interact with MicroPython boards, here's how you can use a module MicroPico in VS Code to do the same https://medium.com/its-the-forge/how-to-run-micropython-on-raspberry-pi-pico-via-vs-code-41d7316f5f73#:~:text=To%20run%20a%20code%20on%20Pico%20you%20can,project%20to%20Pico%E2%80%9D%20or%20%E2%80%9CDownload%20project%20from%20Pico%E2%80%9D.
-6. Conversely, for Circuit Python people use MuEditor often, more information here https://learn.adafruit.com/welcome-to-circuitpython/installing-mu-editor
-7. Having troubles with my PiPico in general (I think the pins were not soldered on so the connection was not great), I tried moving across to my Arduino but not being familiar with C I leverage this as a resource (along with AI) to get started https://github.com/Circuit-Digest/PCA9685-multiple-servo-control-using-Arduino/tree/main
+The original design is classic old-school robotics: hand-derived IK, a
+GUI, marker-based vision, and precoded motion sequences, glued together
+by sending Python source code into the Pico's REPL with a 1-second
+sleep per joint (~6 s per pose). That can't serve a LeRobot control
+loop or a ROS 2 trajectory controller, both of which stream joint
+targets at 10–50 Hz.
+
+What survived, because it was the good stuff: the analytic FK/IK
+(link lengths 111/105/98/25/157 mm), the per-joint scale/offset
+calibration, and the precoded movements (ready pose, hand open/close,
+the `grab()` pick-and-place sequence) — all ported into the driver core.
+
+## Layout
+
+| Path | What |
+|---|---|
+| `arm.yaml` | **Single source of truth**: per-arm profiles — joint names (SO-101 convention), channels, servo models, scale/offset calibration, joint limits, pulse ranges, link lengths |
+| `uroarm/` | Driver core: `config.py` (profile loader), `kinematics.py` (pure FK/IK, no GUI/serial deps), `driver.py` (framed serial protocol + precoded moves) |
+| `pico/` | Firmware v2 (MicroPython): persistent PCA9685 driver, one packet moves all 6 servos, on-Pico ramping with smoothstep easing, watchdog servo release |
+| `ros2/src/uroarm_ros2/` | ROS 2 package: URDF, driver node (`/joint_states` + `FollowJointTrajectory` action server), launch files, MoveIt 2 config |
+| `lerobot_robot_uroarm/` | LeRobot plugin: registers robot type `uroarm_follower` (v0.6.x API) |
+| `tools/import_arm_json.py` | Converts an old `data/arm.json` calibration into an `arm.yaml` profile |
+| `tests/` | Unit tests (stdlib only): `python3 -m unittest discover tests -v` |
+| `legacy/` | The old GUI/vision/REPL stack, Arduino variant and test scripts — reference only |
+
+## Protocol (firmware v2)
+
+Newline-terminated ASCII at 115200 baud, values in servo degrees:
+
+```
+S <s0>,...,<s5>     set all servos now
+M <ms> <s0>,...,<s5>  ramp to target over <ms> (on the Pico)
+R                   release all servos
+P                   ping -> "OK uroarm-fw2"
+Q                   query commanded state
+```
+
+## Quick start
+
+```bash
+pip install -r requirements.txt        # pyyaml, pyserial, numpy
+python3 -m unittest discover tests -v  # no hardware needed
+
+# Flash the Pico: copy pico/pca9685.py, pico/servo.py, pico/main.py onto it
+# Set your port in arm.yaml (or pass it), then:
+python3 -c "
+from uroarm import load_profile
+from uroarm.driver import UroarmDriver
+d = UroarmDriver(load_profile('uroarm')); d.connect('/dev/ttyACM0')
+d.move_to_ready(); d.open_hand(); d.close_hand()
+"
+```
+
+ROS 2 (Jazzy, on the Orin/Pi):
+
+```bash
+ros2 launch uroarm_ros2 display.launch.py   # URDF + RViz, no hardware needed
+ros2 launch uroarm_ros2 driver.launch.py port:=/dev/ttyACM0
+```
+
+LeRobot:
+
+```bash
+pip install -e lerobot_robot_uroarm
+lerobot-teleoperate --robot.type=uroarm_follower --robot.port=/dev/ttyACM0 \
+    --robot.id=uroarm1 --teleop.type=keyboard
+```
+
+## The one big limitation
+
+**There is no position feedback.** Hobby servos on a PCA9685 are
+write-only, so every "current position" in this stack — LeRobot
+observations, ROS 2 `/joint_states`, trajectory feedback — is the last
+*commanded* position (echo). Policies and planners cannot see sag,
+slip or a stalled joint. The planned fix is per-joint AS5600 magnetic
+encoders on a TCA9548A mux, read by the same Pico; with encoders on
+*one* arm it also becomes a 1:1 leader for the other (identical
+geometry = no retargeting), which is the proper way to record LeRobot
+demonstrations for these arms.
+
+## Bring-up checklist (not yet done on hardware)
+
+- [ ] Flash firmware v2, verify `P` → `OK uroarm-fw2`
+- [ ] Import your real calibration: `tools/import_arm_json.py <old arm.json>`
+- [ ] Verify URDF joint axis signs against the physical arm before
+      trusting MoveIt Cartesian moves (URDF zeros are from FK geometry)
+- [ ] Build the ROS 2 package (`colcon build`) on the Orin and run the
+      display launch, then the driver launch
+- [ ] First LeRobot record run with the keyboard teleoperator

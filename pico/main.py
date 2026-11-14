@@ -1,133 +1,174 @@
 #
-# This file should be utilised on MicroPython based boards
+# uroarm firmware v2 — MicroPython, Raspberry Pi Pico / Pico 2
+#
+# Replaces the v1 approach (host sent Python source into the REPL and
+# move_servo() built a brand-new Servos object — re-initialising the
+# PCA9685 — on every single joint move).
+#
+# v2: one persistent Servos object, and a framed line protocol on USB
+# serial at 115200 baud. All values are SERVO degrees (0-180); the host
+# driver (uroarm/driver.py) does joint<->servo conversion and limits.
+#
+#   S <s0>,<s1>,<s2>,<s3>,<s4>,<s5>   set all servos now
+#   M <ms> <s0>,...,<s5>              ramp all servos to target over <ms>
+#   R                                 release all servos (torque off)
+#   P                                 ping  -> "OK uroarm-fw2"
+#   Q                                 query -> "STATE <s0>,...,<s5>"
+#
+# Safety:
+# - targets are clamped to 0-180 here as well as on the host
+# - if no valid packet arrives for WATCHDOG_MS, all servos are released
+#   (a crashed host or pulled cable leaves a limp arm, not a straining one)
+#
+# Copy pca9685.py, servo.py and this file to the Pico.
 #
 
-import ustruct
+import sys
+import select
 import time
 from machine import I2C, Pin
 
-class PCA9685:
-    def __init__(self, i2c, address=0x40):
-        self.i2c = i2c
-        self.address = address
-        self.reset()
+from servo import Servos
 
-    def _write(self, address, value):
-        self.i2c.writeto_mem(self.address, address, bytearray([value]))
+NCH = 6
+WATCHDOG_MS = 10_000
+LOOP_MS = 20  # 50 Hz ramp update
 
-    def _read(self, address):
-        return self.i2c.readfrom_mem(self.address, address, 1)[0]
-
-    def reset(self):
-        self._write(0x00, 0x00) # Mode1
-
-    def freq(self, freq=None):
-        if freq is None:
-            return int(25000000.0 / 4096 / (self._read(0xfe) - 0.5))
-        prescale = int(25000000.0 / 4096.0 / freq + 0.5)
-        old_mode = self._read(0x00) # Mode 1
-        self._write(0x00, (old_mode & 0x7F) | 0x10) # Mode 1, sleep
-        self._write(0xfe, prescale) # Prescale
-        self._write(0x00, old_mode) # Mode 1
-        time.sleep_us(5)
-        self._write(0x00, old_mode | 0xa1) # Mode 1, autoincrement on
-
-    def pwm(self, index, on=None, off=None):
-        if on is None or off is None:
-            data = self.i2c.readfrom_mem(self.address, 0x06 + 4 * index, 4)
-            return ustruct.unpack('<HH', data)
-        data = ustruct.pack('<HH', on, off)
-        self.i2c.writeto_mem(self.address, 0x06 + 4 * index,  data)
-
-    def duty(self, index, value=None, invert=False):
-        if value is None:
-            pwm = self.pwm(index)
-            if pwm == (0, 4096):
-                value = 0
-            elif pwm == (4096, 0):
-                value = 4095
-            value = pwm[1]
-            if invert:
-                value = 4095 - value
-            return value
-        if not 0 <= value <= 4095:
-            raise ValueError("Out of range")
-        if invert:
-            value = 4095 - value
-        if value == 0:
-            self.pwm(index, 0, 4096)
-        elif value == 4095:
-            self.pwm(index, 4096, 0)
-        else:
-            self.pwm(index, 0, value)
-
-
-class Servos:
-    def __init__(self, i2c, address=0x40, freq=50, min_us=600, max_us=2400,
-                 degrees=180):
-        self.period = 1000000 / freq
-        self.min_duty = self._us2duty(min_us)
-        self.max_duty = self._us2duty(max_us)
-        self.degrees = degrees
-        self.freq = freq
-        self.pca9685 = PCA9685(i2c, address)
-        self.pca9685.freq(freq)
-        print(self.pca9685.freq(freq))
-
-    def _us2duty(self, value):
-        return int(4095 * value / self.period)
-
-    def position(self, index, degrees=None, radians=None, us=None, duty=None):
-        span = self.max_duty - self.min_duty
-        if degrees is not None:
-            duty = self.min_duty + span * degrees / self.degrees
-        elif radians is not None:
-            duty = self.min_duty + span * radians / math.radians(self.degrees)
-        elif us is not None:
-            duty = self._us2duty(us)
-        elif duty is not None:
-            pass
-        else:
-            return self.pca9685.duty(index)
-        duty = min(self.max_duty, max(self.min_duty, int(duty)))
-        self.pca9685.duty(index, duty)
-
-    def release(self, index):
-        self.pca9685.duty(index, 0)
+# Per-channel operating pulse ranges — MUST match arm.yaml pulse_us.
+# Kept at the old uniform 600-2400us so existing calibration stays valid.
+PULSE_US = [(600, 2400)] * NCH
 
 i2c = I2C(0, scl=Pin(1), sda=Pin(0), freq=100000)
-print(i2c.scan())
+servos = Servos(i2c, freq=50, channels=PULSE_US)
 
-#ss = Servos(i2c, freq=60)
+led = Pin("LED", Pin.OUT)
 
-# Pico LED Tester
-#led = Pin(25, Pin.OUT) # veresion for Pico
-led = Pin('LED', Pin.OUT) # version for Pico W
 
-# Turn the LED on
+def _clamp(v):
+    return max(0.0, min(180.0, v))
+
+
+class Arm:
+    def __init__(self):
+        self.current = None      # list of 6 servo degrees, or None if released/unknown
+        self.start = None
+        self.target = None
+        self.ramp_start = 0
+        self.ramp_ms = 0
+        self.last_rx = time.ticks_ms()
+        self.released = True
+
+    def set(self, targets, ramp_ms=0):
+        targets = [_clamp(t) for t in targets]
+        self.last_rx = time.ticks_ms()
+        if ramp_ms and ramp_ms > 0 and self.current is not None:
+            self.start = list(self.current)
+            self.target = targets
+            self.ramp_start = time.ticks_ms()
+            self.ramp_ms = ramp_ms
+        else:
+            self.start = self.target = None
+            self._apply(targets)
+
+    def _apply(self, values):
+        for ch, deg in enumerate(values):
+            servos.position(ch, deg)
+        self.current = list(values)
+        self.released = False
+
+    def release(self):
+        for ch in range(NCH):
+            servos.release(ch)
+        self.current = None
+        self.start = self.target = None
+        self.released = True
+
+    def update(self):
+        now = time.ticks_ms()
+        if self.target is not None:
+            t = time.ticks_diff(now, self.ramp_start) / self.ramp_ms
+            if t >= 1:
+                self._apply(self.target)
+                self.start = self.target = None
+            else:
+                # smoothstep easing — gentler ends than a linear ramp
+                e = t * t * (3 - 2 * t)
+                self._apply([s + e * (g - s) for s, g in zip(self.start, self.target)])
+        elif not self.released and time.ticks_diff(now, self.last_rx) > WATCHDOG_MS:
+            self.release()
+            print("WATCHDOG release")
+
+
+arm = Arm()
+
+
+def _parse_targets(text):
+    vals = [float(v) for v in text.split(",")]
+    if len(vals) != NCH:
+        raise ValueError("need %d values" % NCH)
+    return vals
+
+
+def handle(line):
+    line = line.strip()
+    if not line:
+        return
+    try:
+        if line == "P":
+            arm.last_rx = time.ticks_ms()
+            print("OK uroarm-fw2")
+        elif line == "R":
+            arm.release()
+            print("OK R")
+        elif line == "Q":
+            arm.last_rx = time.ticks_ms()
+            if arm.current is None:
+                print("STATE released")
+            else:
+                print("STATE " + ",".join("%.1f" % v for v in arm.current))
+        elif line.startswith("S "):
+            arm.set(_parse_targets(line[2:]))
+            print("OK S")
+        elif line.startswith("M "):
+            ms_text, targets_text = line[2:].split(" ", 1)
+            arm.set(_parse_targets(targets_text), ramp_ms=int(ms_text))
+            print("OK M")
+        else:
+            print("ERR unknown command")
+    except Exception as e:
+        print("ERR", e)
+
+
+# Backwards-compatible REPL helper, like v1: move_servo(ch, deg)
+def move_servo(s, v):
+    targets = list(arm.current) if arm.current is not None else [90.0] * NCH
+    targets[int(s)] = _clamp(float(v))
+    arm.set(targets)
+
+
 def on():
     led.value(1)
 
-# Turn the LED off
+
 def off():
     led.value(0)
 
-#while True:
-#    print("loop started")
-#    s = input()
-#    v = s.split(',')
-#    if len(v) != 2:
-#        print('syntax error', s)
-#        continue
-#    chn = int(v[0])
-#    deg = float(v[1])
-#    ss.position(chn, deg)
 
-def move_servo(s,v):
-    ss = Servos(i2c)
-    print("moving servo")
-    s = s
-    v = v
-    chn = int(s)
-    deg = float(v)
-    ss.position(chn, deg)
+def main():
+    poller = select.poll()
+    poller.register(sys.stdin, select.POLLIN)
+    buf = ""
+    print("OK uroarm-fw2 boot")
+    while True:
+        arm.update()
+        events = poller.poll(LOOP_MS)
+        if events:
+            chunk = sys.stdin.read(1)
+            if chunk:
+                buf += chunk
+                while "\n" in buf:
+                    line, buf = buf.split("\n", 1)
+                    handle(line)
+
+
+main()
